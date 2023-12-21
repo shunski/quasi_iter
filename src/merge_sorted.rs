@@ -179,6 +179,16 @@ pub struct MergeSortedDyn<O> {
     data: Vec<(O, Box<dyn Iterator<Item = O>>)>,
 }
 
+pub struct MergeSortedDynBy<O, F> {
+    data: Vec<(O, Box<dyn Iterator<Item = O>>)>,
+    comparator: F,
+}
+
+pub struct MergeSortedDynByKey<O, F> {
+    data: Vec<(O, Box<dyn Iterator<Item = O>>)>,
+    key: F,
+}
+
 impl<O> Iterator for MergeSortedDyn<O> 
     where O: Ord
 {
@@ -213,6 +223,79 @@ impl<O> Iterator for MergeSortedDyn<O>
     }
 }
 
+
+impl<O, F> Iterator for MergeSortedDynBy<O, F> 
+    where 
+        O: Ord,
+        F: FnMut(&O, &O) -> Ordering
+{
+    type Item = O;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.data.is_empty() {
+            None
+        } else {
+            let next = self.data.first_mut().unwrap().1.next();
+            
+            if let Some(mut item) = next {
+                // if the itetator 'self.data[0].1' has some next value, then store it in
+                // 'self.data[0].0' and return the old value in there.
+                mem::swap(&mut item, &mut self.data.first_mut().unwrap().0);
+
+                // Now sort the self.data.
+                let mut i = 0;
+                while i<self.data.len()-1 && (self.comparator)( &self.data[i].0, &self.data[i+1].0 ).is_gt() {
+                    // Note that this function does not panic at 'self.data.len()-1' because 'self.data' is not empty.
+                    self.data.swap(i, i+1);
+                    i+=1;
+                }
+
+
+                Some(item)
+            } else {
+                // if the iterator 'self.data[0].1' is done, then remove the iterator
+                // and return the value
+                Some( self.data.remove(0).0 )
+            }
+        }
+    }
+}
+
+impl<O, F, K> Iterator for MergeSortedDynByKey<O, F> 
+    where 
+        K: Ord,
+        F: FnMut(&O) -> K
+{
+    type Item = O;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.data.is_empty() {
+            None
+        } else {
+            let next = self.data.first_mut().unwrap().1.next();
+            
+            if let Some(mut item) = next {
+                // if the itetator 'self.data[0].1' has some next value, then store it in
+                // 'self.data[0].0' and return the old value in there.
+                mem::swap(&mut item, &mut self.data.first_mut().unwrap().0);
+
+                // Now sort the self.data.
+                let mut i = 0;
+                while i<self.data.len()-1 && (self.key)( &self.data[i].0 ).cmp( &(self.key)(&self.data[i+1].0 )).is_gt() {
+                    // Note that this function does not panic at 'self.data.len()-1' because 'self.data' is not empty.
+                    self.data.swap(i, i+1);
+                    i+=1;
+                }
+
+
+                Some(item)
+            } else {
+                // if the iterator 'self.data[0].1' is done, then remove the iterator
+                // and return the value
+                Some( self.data.remove(0).0 )
+            }
+        }
+    }
+}
+
 pub fn merge_sorted_dyn<T, O>(data: T) -> MergeSortedDyn<O> 
     where 
         T: IntoIterator<Item = Box<dyn Iterator<Item = O>>>,
@@ -228,6 +311,44 @@ pub fn merge_sorted_dyn<T, O>(data: T) -> MergeSortedDyn<O>
     data.sort_by(|(x,_), (y,_)| x.cmp(y) );
     
     MergeSortedDyn{data}
+}
+
+
+pub fn merge_sorted_dyn_by<T, O, F>(data: T, mut comparator: F) -> MergeSortedDynBy<O, F> 
+    where 
+        T: IntoIterator<Item = Box<dyn Iterator<Item = O>>>,
+        O: Ord,
+        F: FnMut(&O, &O) -> Ordering
+{
+    let mut data = data.into_iter()
+        .map(|mut x| (x.next(), x))
+        .filter(|(item, _)| item != &None )
+        .map(|(item, iter)| (item.unwrap(), iter))
+        .collect::<Vec<_>>();
+
+    // Sort 'data'
+    data.sort_by(|(x,_), (y,_)| comparator(x, y) );
+    
+    MergeSortedDynBy{data, comparator}
+}
+
+pub fn merge_sorted_dyn_by_key<T, O, F, K>(data: T, mut key: F) -> MergeSortedDynByKey<O, F> 
+    where 
+        T: IntoIterator<Item = Box<dyn Iterator<Item = O>>>,
+        O: PartialEq,
+        K: Ord,
+        F: FnMut(&O) -> K
+{
+    let mut data = data.into_iter()
+        .map(|mut x| (x.next(), x))
+        .filter(|(item, _)| item != &None )
+        .map(|(item, iter)| (item.unwrap(), iter))
+        .collect::<Vec<_>>();
+
+    // Sort 'data'
+    data.sort_by_key(|(x,_)| key(x) );
+    
+    MergeSortedDynByKey{data, key}
 }
 
 impl<O> MergeSortedDyn<O> 
