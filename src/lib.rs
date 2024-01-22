@@ -1,8 +1,14 @@
-pub mod merge_sorted;
+pub mod merge;
+pub mod dedup;
+pub mod splice;
 
-pub use merge_sorted::{
-    merge_sorted,
-    merge_sorted_by,
-    merge_sorted_by_key,
-    merge_sorted_dyn
-};
+pub mod prelude {
+    pub use crate::merge::{
+        Mergable,
+        merge_dyn,
+        merge_dyn_by,
+        merge_dyn_by_key,
+    };
+    
+    pub use crate::dedup::Dedupable;
+}

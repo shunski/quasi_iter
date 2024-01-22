@@ -1,14 +1,14 @@
 use std::cmp::Ordering;
 use std::mem;
 
-pub struct MergeSorted<I,J,O> {
+pub struct Merge<I,J,O> {
     iter1: I,
     iter2: J,
     curr: Option<O>,
     is_iter1_smaller: bool,
 }
 
-pub struct MergeSortedBy<I, J, F, O> {
+pub struct MergeBy<I, J, F, O> {
     iter1: I,
     iter2: J,
     comparator: F,
@@ -16,7 +16,7 @@ pub struct MergeSortedBy<I, J, F, O> {
     is_iter1_smaller: bool,
 }
 
-pub struct MergeSortedByKey<I, J, F, O> {
+pub struct MergeByKey<I, J, F, O> {
     iter1: I,
     iter2: J,
     key: F,
@@ -25,7 +25,7 @@ pub struct MergeSortedByKey<I, J, F, O> {
 }
 
 
-impl<I,J,O> Iterator for MergeSorted<I,J,O> 
+impl<I,J,O> Iterator for Merge<I,J,O> 
     where 
         I: Iterator<Item = O>,
         J: Iterator<Item = O>,
@@ -62,7 +62,7 @@ impl<I,J,O> Iterator for MergeSorted<I,J,O>
     }
 }
 
-impl<I,J,F,O> Iterator for MergeSortedBy<I,J,F,O> 
+impl<I,J,F,O> Iterator for MergeBy<I,J,F,O> 
     where 
         I: Iterator<Item = O>,
         J: Iterator<Item = O>,
@@ -100,7 +100,7 @@ impl<I,J,F,O> Iterator for MergeSortedBy<I,J,F,O>
 }
 
 
-impl<I,J,F,O,K> Iterator for MergeSortedByKey<I,J,F,O> 
+impl<I,J,F,O,K> Iterator for MergeByKey<I,J,F,O> 
     where 
         I: Iterator<Item = O>,
         J: Iterator<Item = O>,
@@ -138,58 +138,76 @@ impl<I,J,F,O,K> Iterator for MergeSortedByKey<I,J,F,O>
     }
 }
 
-pub fn merge_sorted<I,J,O>(iter1: impl IntoIterator<IntoIter = I>, iter2: impl IntoIterator<IntoIter = J>) -> MergeSorted<I,J,O> 
-    where 
-        I: Iterator<Item = O>,
-        J: Iterator<Item = O>,
-        O: Ord
+pub trait Mergable<J, O>: Iterator + Sized 
+    where J: Iterator<Item = O>,
 {
-    let iter1 = iter1.into_iter();
-    let mut iter2 = iter2.into_iter();
-    let curr = iter2.next();
-    MergeSorted{ iter1, iter2, curr, is_iter1_smaller: true}
+    fn merge<L>(self, other: L) -> Merge<Self,J,O>
+        where L: IntoIterator<IntoIter = J>;
+        
+    fn merge_by<F,L>(self, other: L, comparator: F) -> MergeBy<Self,J,F,O>
+        where
+            F: FnMut(&O,&O)->Ordering, 
+            L: IntoIterator<IntoIter = J>;
+
+    fn merge_by_key<F,L,K>(self, other: L, key: F) -> MergeByKey<Self,J,F,O>
+        where 
+            F: FnMut(&O)->K, 
+            L: IntoIterator<IntoIter = J>;
 }
 
-pub fn merge_sorted_by<I,J,F,O>(iter1: impl IntoIterator<IntoIter = I>, iter2: impl IntoIterator<IntoIter = J>, comparator: F) -> MergeSortedBy<I,J,F,O> 
-    where 
+impl<I,J,O> Mergable<J,O> for I 
+    where
         I: Iterator<Item = O>,
         J: Iterator<Item = O>,
-        F: FnMut(&O,&O) -> Ordering,
+        O: Ord,
 {
-    let iter1 = iter1.into_iter();
-    let mut iter2 = iter2.into_iter();
-    let curr = iter2.next();
-    MergeSortedBy{ iter1, iter2, comparator, curr, is_iter1_smaller: true}
+    fn merge<L>(self, other: L) -> Merge<Self,J,O> 
+        where L: IntoIterator<IntoIter = J>
+    {
+        let iter1 = self;
+        let mut iter2 = other.into_iter();
+        let curr = iter2.next();
+        Merge{ iter1, iter2, curr, is_iter1_smaller: true}
+    }
+
+    fn merge_by<F, L>(self, other: L, comparator: F) -> MergeBy<Self, J, F, O> 
+        where 
+            F: FnMut(&O,&O)->Ordering, 
+            L: IntoIterator<IntoIter = J>,
+    {
+        let iter1 = self;
+        let mut iter2 = other.into_iter();
+        let curr = iter2.next();
+        MergeBy{ iter1, iter2, comparator, curr, is_iter1_smaller: true}
+    }
+
+    fn merge_by_key<F,L,K>(self, other: L, key: F) -> MergeByKey<Self,J,F,O>
+            where 
+                F: FnMut(&O)->K, 
+                L: IntoIterator<IntoIter = J> 
+    {
+        let iter1 = self;
+        let mut iter2 = other.into_iter();
+        let curr = iter2.next();
+        MergeByKey{ iter1, iter2, key, curr, is_iter1_smaller: true}
+    }
 }
 
-pub fn merge_sorted_by_key<I,J,F,O,K>(iter1: impl IntoIterator<IntoIter = I>, iter2: impl IntoIterator<IntoIter = J>, key: F) -> MergeSortedByKey<I,J,F,O> 
-    where 
-        I: Iterator<Item = O>,
-        J: Iterator<Item = O>,
-        F: FnMut(&O) -> K,
-        K: Ord
-{
-    let iter1 = iter1.into_iter();
-    let mut iter2 = iter2.into_iter();
-    let curr = iter2.next();
-    MergeSortedByKey{ iter1, iter2, key, curr, is_iter1_smaller: true}
-}
-
-pub struct MergeSortedDyn<O> {
+pub struct MergeDyn<O> {
     data: Vec<(O, Box<dyn Iterator<Item = O>>)>,
 }
 
-pub struct MergeSortedDynBy<O, F> {
+pub struct MergeDynBy<O, F> {
     data: Vec<(O, Box<dyn Iterator<Item = O>>)>,
     comparator: F,
 }
 
-pub struct MergeSortedDynByKey<O, F> {
+pub struct MergeDynByKey<O, F> {
     data: Vec<(O, Box<dyn Iterator<Item = O>>)>,
     key: F,
 }
 
-impl<O> Iterator for MergeSortedDyn<O> 
+impl<O> Iterator for MergeDyn<O> 
     where O: Ord
 {
     type Item = O;
@@ -224,7 +242,7 @@ impl<O> Iterator for MergeSortedDyn<O>
 }
 
 
-impl<O, F> Iterator for MergeSortedDynBy<O, F> 
+impl<O, F> Iterator for MergeDynBy<O, F> 
     where 
         O: Ord,
         F: FnMut(&O, &O) -> Ordering
@@ -260,7 +278,7 @@ impl<O, F> Iterator for MergeSortedDynBy<O, F>
     }
 }
 
-impl<O, F, K> Iterator for MergeSortedDynByKey<O, F> 
+impl<O, F, K> Iterator for MergeDynByKey<O, F> 
     where 
         K: Ord,
         F: FnMut(&O) -> K
@@ -296,7 +314,7 @@ impl<O, F, K> Iterator for MergeSortedDynByKey<O, F>
     }
 }
 
-pub fn merge_sorted_dyn<T, O>(data: T) -> MergeSortedDyn<O> 
+pub fn merge_dyn<T, O>(data: T) -> MergeDyn<O> 
     where 
         T: IntoIterator<Item = Box<dyn Iterator<Item = O>>>,
         O: Ord,
@@ -310,11 +328,11 @@ pub fn merge_sorted_dyn<T, O>(data: T) -> MergeSortedDyn<O>
     // Sort 'data'
     data.sort_by(|(x,_), (y,_)| x.cmp(y) );
     
-    MergeSortedDyn{data}
+    MergeDyn{data}
 }
 
 
-pub fn merge_sorted_dyn_by<T, O, F>(data: T, mut comparator: F) -> MergeSortedDynBy<O, F> 
+pub fn merge_dyn_by<T, O, F>(data: T, mut comparator: F) -> MergeDynBy<O, F> 
     where 
         T: IntoIterator<Item = Box<dyn Iterator<Item = O>>>,
         O: Ord,
@@ -329,10 +347,10 @@ pub fn merge_sorted_dyn_by<T, O, F>(data: T, mut comparator: F) -> MergeSortedDy
     // Sort 'data'
     data.sort_by(|(x,_), (y,_)| comparator(x, y) );
     
-    MergeSortedDynBy{data, comparator}
+    MergeDynBy{data, comparator}
 }
 
-pub fn merge_sorted_dyn_by_key<T, O, F, K>(data: T, mut key: F) -> MergeSortedDynByKey<O, F> 
+pub fn merge_dyn_by_key<T, O, F, K>(data: T, mut key: F) -> MergeDynByKey<O, F> 
     where 
         T: IntoIterator<Item = Box<dyn Iterator<Item = O>>>,
         O: PartialEq,
@@ -348,20 +366,7 @@ pub fn merge_sorted_dyn_by_key<T, O, F, K>(data: T, mut key: F) -> MergeSortedDy
     // Sort 'data'
     data.sort_by_key(|(x,_)| key(x) );
     
-    MergeSortedDynByKey{data, key}
-}
-
-impl<O> MergeSortedDyn<O> 
-    where O: Ord
-{
-    pub fn merge(self, other: Self) -> Self {
-        let data = merge_sorted_by(
-            self.data.into_iter(),
-            other.data.into_iter(),
-            |(v1,_),(v2,_)| v1.cmp(v2)
-        ).collect();
-        Self { data }
-    } 
+    MergeDynByKey{data, key}
 }
 
 
