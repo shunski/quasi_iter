@@ -2,6 +2,13 @@ pub mod merge;
 pub mod dedup;
 pub mod splice;
 
+/// The trait `UncheckedIterator` is just `Iterator` but the return value is forced to be 'Item'.
+/// 'next_unchecked()' thus should be unsafe in general.
+pub trait UncheckedIterator {
+    type Item;
+    fn next_unchecked() -> Self::Item;
+}
+
 pub mod prelude {
     pub use crate::merge::{
         Mergable,
