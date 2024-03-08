@@ -12,8 +12,8 @@ pub struct SpliceBy<I, J, F> {
 }
 
 
-/// SpliceByKey is an iterator that acts like an intersection of the two input iterators. For the 'union' 
-/// counterpart of this iterator, see "MergeNyKey".
+/// `SpliceByKey` is an iterator that acts like an intersection of the two input iterators. For the "union" 
+/// counterpart of this iterator, see [MergeByKey].
 /// Note that the caller has to make sure that the two input iterators are sorted by keys. Otherwise, 
 /// SpliceByKey shows an undefined behavior, and SpliceByKey DOES NOT perform the internal check.
 

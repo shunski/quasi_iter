@@ -1,6 +1,6 @@
 pub mod merge;
 pub mod dedup;
-pub mod splice;
+// pub mod splice;
 
 /// The trait `UncheckedIterator` is just `Iterator` but the return value is forced to be 'Item'.
 /// 'next_unchecked()' thus should be unsafe in general.
