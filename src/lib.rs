@@ -6,7 +6,7 @@ pub mod dedup;
 /// 'next_unchecked()' thus should be unsafe in general.
 pub trait UncheckedIterator {
     type Item;
-    fn next_unchecked() -> Self::Item;
+    fn next_unchecked(&mut self) -> Self::Item;
 }
 
 pub mod prelude {
